@@ -1,0 +1,42 @@
+{
+    "configurations": [
+        {
+            "name": "driver",
+            "defines": [
+                "__KERNEL__",
+                "MODULE",
+                "KBUILD_MODNAME=\"DriverModule\""
+            ],
+            "compilerPath": "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
+            "cStandard": "c99",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "gcc-arm",
+            "includePath": [
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include/generated",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/linux",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/asm-generic",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include/uapi",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include/generated/uapi",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/uapi",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/uapi/asm-generic",
+                "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/generated/uapi",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/arm-linux-gnueabihf/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/8.3.0/install-tools/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/8.3.0/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/8.3.0/plugin/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/arm-linux-gnueabihf/include",
+                "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/include"
+
+            ],
+            "compilerArgs": [
+                "-nostdinc",
+                "-include", "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/linux/kconfig.h",
+                "-include", "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/linux/compiler_types.h"
+            ]
+        }
+    ],
+    "version": 4
+}
