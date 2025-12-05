@@ -12,6 +12,7 @@
             "cppStandard": "c++11",
             "intelliSenseMode": "gcc-arm",
             "includePath": [
+                "${workspaceFolder}/**",
                 "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include",
                 "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/arch/arm/include/generated",
                 "/home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include",
