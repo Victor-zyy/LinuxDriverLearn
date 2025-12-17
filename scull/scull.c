@@ -47,7 +47,7 @@ MODULE_LICENSE("GPL");
 /**
  * We can't set it as static number
  */
-struct scull_dev *scull_devices;
+struct scull_dev *scull_devices = NULL;
 
 /*
  * Empty out the scull device; must be called with the device
@@ -61,8 +61,10 @@ int scull_trim(struct scull_dev *dev)
 
     for (dptr = dev->data; dptr; dptr = next) { /* iterate all the list items */
         if (dptr->data) {
-            for (i = 0; i < qset; i++)
-                kfree(dptr->data[i]);
+            for (i = 0; i < qset; i++){
+                if (dptr->data[i])
+                    kfree(dptr->data[i]);
+            }
             kfree(dptr->data);
             dptr->data = NULL;
         }
@@ -225,7 +227,7 @@ static void scull_create_proc(void)
 static void scull_remove_proc(void)
 {
     /* no problem if it was not registered */
-    remove_proc_entry("scullmem", NULL /* parent dir */);
+    //remove_proc_entry("scullmem", NULL /* parent dir */);
     remove_proc_entry("scullseq", NULL /* parent dir */);
 }
 #endif /* SCULL_DEBUG */
@@ -644,6 +646,13 @@ static int __init scull_init_module(void)
         result = -ENOMEM;
         goto fail; // Makes this more graceful
     }
+    /* Need to be considered when u allocate a new memory space
+     * If I don't memset this memory, when calling rmmod and open file,
+     * it will call scull_trim, and the address may be not null
+     * Then kfree will accidentally free the unexpected memory which 
+     * cause oops in linux kernel(err :5)
+     */
+    memset(scull_devices, 0, sizeof(struct scull_dev) * scull_nr_devs);
 
     /* Initialize each device */
     for (i = 0; i < scull_nr_devs; i++) {
