@@ -24,7 +24,7 @@
 #include "scull.h"
 
 
-#define SCULL_DEBUG /* Just for Test The true definition is defined in Makefile */
+//#define SCULL_DEBUG /* Just for Test The true definition is defined in Makefile */
 
 /**
  * Our Parameters which can be set at load time
@@ -152,6 +152,7 @@ static int scull_seq_show(struct seq_file *s, void *v)
     int i;
     if (down_interruptible(&dev->sem))
         return -ERESTARTSYS;
+    seq_escape(s, "hello zynex\r\n", " \t\n\\"); // s in esc is printed in octal format
     seq_printf(s, "\nDevie %i: qset %i, q %i, sz %li\n",
         (int)(dev - scull_devices), dev->qset,
         dev->quantum, dev->size);
@@ -221,14 +222,15 @@ static void scull_create_proc(void)
             NULL /* client data */);
     #endif
     /* create_proc_entry is deprecated since kernel version3.1 now is changed to proc_create*/
-    entry = proc_create("scullseq", 0, NULL, &scull_proc_ops); 
+    proc_mkdir("scull", NULL);
+    entry = proc_create("scull/scullseq", 0, NULL, &scull_proc_ops); 
 }
 
 static void scull_remove_proc(void)
 {
     /* no problem if it was not registered */
     //remove_proc_entry("scullmem", NULL /* parent dir */);
-    remove_proc_entry("scullseq", NULL /* parent dir */);
+    remove_proc_entry("scull/scullseq", NULL /* parent dir */);
 }
 #endif /* SCULL_DEBUG */
 
