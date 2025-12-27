@@ -231,6 +231,7 @@ static void scull_remove_proc(void)
     /* no problem if it was not registered */
     //remove_proc_entry("scullmem", NULL /* parent dir */);
     remove_proc_entry("scull/scullseq", NULL /* parent dir */);
+    remove_proc_entry("scull", NULL);
 }
 #endif /* SCULL_DEBUG */
 

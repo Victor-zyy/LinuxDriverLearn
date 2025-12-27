@@ -94,11 +94,13 @@ static int scull_u_open(struct inode *inode, struct file *filp){
         (scull_u_owner != current_euid().val) && 
         !capable(CAP_DAC_OVERRIDE)) {
             spin_unlock(&scull_u_lock);
+            PDEBUG("current_uid %d current_euid %d\n", current_uid().val, current_euid().val);
             return -EBUSY; /* -EPERM would confuse the user */
         }
 
     if (scull_u_count == 0)
         scull_u_owner = current_uid().val; //rcu protect
+    PDEBUG("current_uid %d current_euid %d\n", current_uid().val, current_euid().val);
     scull_u_count ++;
     spin_unlock(&scull_u_lock);
 
@@ -268,6 +270,7 @@ static int scull_c_open(struct inode *inode, struct file *filp)
     }
 
     key = tty_devnum(get_current_tty());
+    PDEBUG("key is %d\n", key);
     /* look for a scullc device in the list */
     spin_lock(&scull_c_lock);
     dev = scull_c_lookfor_device(key);
@@ -317,7 +320,7 @@ static struct scull_adev_info {
 } scull_access_devs[] = {
     { "scullsingle", &scull_s_device, &scull_sngl_fops },
     { "sculluid", &scull_u_device, &scull_user_fops },
-    { "scullwuid", &scull_u_device, &scull_wusr_fops },
+    { "scullwuid", &scull_w_device, &scull_wusr_fops },
     { "scullpriv", &scull_c_device, &scull_priv_fops }
 };
 
@@ -337,14 +340,14 @@ static void scull_access_setup(dev_t devno, struct scull_adev_info *devinfo){
 
     /* Do the cdev stuff */
     cdev_init(&dev->cdev, devinfo->fops);
-    kobject_set_name(&dev->cdev.kobj, devinfo->name); /* need to be handled */
+    //kobject_set_name(&dev->cdev.kobj, devinfo->name); /* need to be handled */
     dev->cdev.owner = THIS_MODULE;
     err = cdev_add(&dev->cdev, devno, 1);
 
     /* Fail gracefully if need be */
     if (err) {
         printk(KERN_NOTICE "Error %d adding %s\n", err, devinfo->name);
-        kobject_put(&dev->cdev.kobj);
+        //kobject_put(&dev->cdev.kobj);
     } else {
         printk(KERN_NOTICE "%s registered at %x\n", devinfo->name, devno);
     }

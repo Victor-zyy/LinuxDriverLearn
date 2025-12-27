@@ -95,7 +95,7 @@ static int scull_p_release(struct inode *inode, struct file *filp)
 
     /* remove this filp from asynchronously notified filp's */
     scull_p_fasync(-1, filp, 0);
-    down(&dev->sem); /* why use down not down_interruptible */
+    down(&dev->sem); /* why use down not down_interruptible -- we are not gonna to interrupt by signal*/
     if (filp->f_mode & FMODE_READ)
         dev->nreaders--;
     if (filp->f_mode & FMODE_WRITE)

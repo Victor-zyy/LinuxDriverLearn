@@ -2,3 +2,4 @@ examples/*
 examples
 *.out
 .*/*.out
+analyse
