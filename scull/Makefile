@@ -10,11 +10,12 @@ else
 endif
 
 ccflags-y += $(DEBFLAGS)  # CFLAGS now changed to ccflags-y
-#ccflags-y += -I$(LDDINC) # LDDInclude Directory
+ccflags-y += -I$(LDDINC) # LDDInclude Directory
 
 # If KERNELRELEASE is defined, we've been invoked from the
 # kernel build system and can use its language.
 ifneq ($(KERNELRELEASE),)
+	scull-objs := main.o pipe.o access.o
 	obj-m := scull.o
 # Otherwise we were called directly from the command
 # line; invoke the kernel build system.
@@ -27,7 +28,7 @@ else
 	PWD := $(shell pwd)
 
 modules:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) LDDINC=$(PWD)/../include modules
 
 modules_install:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
@@ -35,7 +36,16 @@ modules_install:
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.order *.symvers
 copy:
-	cp *.ko scull_load scull_unload /home/zyy/repo/embed_linux_tutorial/nfs_share/
+	mkdir -p /home/zyy/repo/embed_linux_tutorial/nfs_share/scull
+	cp *.ko scull_load scull_unload /home/zyy/repo/embed_linux_tutorial/nfs_share/scull/
+
+depend .depend dep:
+	$(CC) $(CFLAGS) -M *.c > .depend
+
+ifeq (.depend, $(wildcard .depend))
+	include .depend
+endif
+
 
 .PHONY:	modules_install modules clean copy
 

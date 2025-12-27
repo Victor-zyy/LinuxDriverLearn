@@ -503,12 +503,11 @@ long scull_ioctl(struct file *filp,
          */
 
 	  case SCULL_P_IOCTSIZE:
-		//scull_p_buffer = arg;
+		scull_p_buffer = arg;
 		break;
 
 	  case SCULL_P_IOCQSIZE:
-        break;
-		//return scull_p_buffer;
+		return scull_p_buffer;
 
 
     default: /* redundant, as cmd was checked against MAXNR */
@@ -609,8 +608,8 @@ static void scull_cleanup_module(void)
     unregister_chrdev_region(devno, scull_nr_devs);
 
     /* and call the cleanup functions for friend devices */
-    //scull_p_cleanup(); // for scull_pipe
-    //scull_access_cleanup(); // for scull_access
+    scull_p_cleanup(); // for scull_pipe
+    scull_access_cleanup(); // for scull_access
 }
 
 static int __init scull_init_module(void)
@@ -665,8 +664,8 @@ static int __init scull_init_module(void)
     }
     /* At this point call the init function for any friend device */
     dev = MKDEV(scull_major, scull_minor + scull_nr_devs); 
-    //dev += scull_p_init(dev);       // scull_pipe
-    //dev += scull_access_init(dev);  // scull_access
+    dev += scull_p_init(dev);       // scull_pipe
+    dev += scull_access_init(dev);  // scull_access
 
 #ifdef SCULL_DEBUG
     scull_create_proc(); /* Only when debugging */
