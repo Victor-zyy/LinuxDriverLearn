@@ -100,7 +100,7 @@ static int scull_u_open(struct inode *inode, struct file *filp){
     if (scull_u_count == 0)
         scull_u_owner = current_uid().val; //rcu protect
     scull_u_count ++;
-    spin_unlock(&scull_u_device);
+    spin_unlock(&scull_u_lock);
 
     /* then everything else is copied from the bare scull device */
     if ((filp->f_flags & O_ACCMODE) == O_WRONLY)
@@ -248,7 +248,7 @@ static struct scull_dev *scull_c_lookfor_device(dev_t key){
     memset(lptr, 0, sizeof(struct scull_listitem));
     lptr->key = key;
     scull_trim(&(lptr->device));
-    mutex_init(&(lptr->device.sem));
+    sema_init(&(lptr->device.sem), 1);
     
     /* place it in the list*/
     list_add(&lptr->list, &scull_c_list);
@@ -364,7 +364,7 @@ int scull_access_init(dev_t firstdev)
     scull_a_firstdev = result;
 
     /* setup for each device */
-    for (int i = 0; i < SCULL_N_ADEVS; i++)
+    for (i = 0; i < SCULL_N_ADEVS; i++)
     {
         scull_access_setup(firstdev + i, scull_access_devs + i);
     }
@@ -382,7 +382,7 @@ void scull_access_cleanup(void)
     int i;
 
     /* Clean up the static devs */
-    for (int i = 0; i < SCULL_N_ADEVS; i++)
+    for (i = 0; i < SCULL_N_ADEVS; i++)
     {
         struct scull_dev *dev = scull_access_devs[i].sculldev;
         cdev_del(&dev->cdev);
