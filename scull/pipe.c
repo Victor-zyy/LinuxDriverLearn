@@ -224,6 +224,10 @@ static ssize_t scull_p_write(struct file *filp, const char __user *buf, size_t c
     /* signal async readers */
     if (dev->async_queue)
         kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
+    /**
+     * Async and Wait order need to be considered
+     * by default O_NONBLOCKIING is not set, so blocking io
+     */
     PDEBUG("\"%s\" did write %li bytes\n", current->comm, (long)count);
     return count;
 }
