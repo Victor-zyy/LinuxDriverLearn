@@ -21,7 +21,7 @@ static DECLARE_WAIT_QUEUE_HEAD(wq);
 
 static int flag = 0;
 
-ssize_t sleepy_read (struct file *filp, char __user *buf, ssize_t count, loff_t *pos)
+ssize_t sleepy_read (struct file *filp, char __user *buf, size_t count, loff_t *pos)
 {
     printk(KERN_DEBUG "process %i (%s) going to sleep\n",
                 current->pid, current->comm);
@@ -31,7 +31,7 @@ ssize_t sleepy_read (struct file *filp, char __user *buf, ssize_t count, loff_t 
     return 0; /* indicates EOF */
 }
 
-ssize_t sleepy_write (struct file *flip, const char __user *buf, ssize_t count, loff_t *pos)
+ssize_t sleepy_write (struct file *flip, const char __user *buf, size_t count, loff_t *pos)
 {
     printk(KERN_DEBUG "process %i (%s) awakening the readers...\n",
                     current->pid, current->comm);
@@ -68,4 +68,4 @@ static void __exit sleepy_exit(void)
 }
 
 module_init(sleepy_init);
-module_init(sleepy_exit);
+module_exit(sleepy_exit);
