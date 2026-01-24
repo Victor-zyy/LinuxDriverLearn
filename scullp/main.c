@@ -508,18 +508,171 @@ loff_t  scullp_llseek(struct file *filp, loff_t off, int whence)
 }
 
 
+
 /**
  *  Asynchronous I/O --- chapter15 to learn AIO Framework
  *  For memory map --- Chapter15 to learn and review
  * 
  */
+/*
+ * A simple asynchronous I/O implementation.
+ */
+
+struct async_work {
+	struct kiocb *iocb;
+	int result;
+	struct delayed_work work;
+};
+
+/*
+ * "Complete" an asynchronous operation.
+ */
+static void scullp_do_deferred_op(struct work_struct *p)
+{
+	struct async_work *stuff = (struct async_work *)container_of(to_delayed_work(p), struct async_work, work);
+	stuff->iocb->ki_complete(stuff->iocb, stuff->result, 0);
+	kfree(stuff);
+}
+
+static int scullp_aio_write_temp(struct kiocb *iocb, struct iov_iter *iov)
+{
+    struct scullp_dev *dev = iocb->ki_filp->private_data;
+    struct scullp_dev *dptr;
+    int quantum = PAGE_SIZE << dev->order, qset = dev->qset;
+    int itemsize = quantum * qset;
+    int item, s_pos, q_pos, rest;
+    ssize_t retval = -ENOMEM; /* value used in "goto out" statement */
+    size_t count = iov_iter_count(iov);
+
+    if (down_interruptible(&dev->sem)) 
+        return -ERESTARTSYS;
+    
+    /* find listitem, qset index and offset in the quantum */
+    item = (long)iocb->ki_pos / itemsize;
+    rest = (long)iocb->ki_pos % itemsize;
+    s_pos = rest / quantum; q_pos = rest % quantum;
+
+    /* follow the list up to the right position */
+    dptr = scullp_follow(dev, item);
+    if (dptr == NULL)
+        goto out;
+    if (!dptr->data) {
+        dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
+        if (!dptr->data)
+            goto out;
+        memset(dptr->data, 0, qset * sizeof(char *));
+    }
+
+    /* here is the allocation of a single quantum */
+    if (!dptr->data[s_pos]) {
+        dptr->data[s_pos] = (void *)__get_free_pages(GFP_KERNEL, dptr->order);
+        if (!dptr->data[s_pos])
+            goto out;
+        memset(dptr->data[s_pos], 0, PAGE_SIZE << dptr->order);
+    }
+    /* write only up to the end of this quantum */
+    if (count > quantum - q_pos)
+        count = quantum - q_pos;
+    
+    if (copy_from_iter(dptr->data[s_pos] + q_pos, count, iov)) {
+        retval = -EFAULT;
+        goto out;
+    }
+    iocb->ki_pos += count; /* consider it*/
+    retval = count;
+
+    /* update the dev->size */
+    if (dev->size < iocb->ki_pos)
+        dev->size = iocb->ki_pos;
+
+out:
+    up(&dev->sem);
+    return retval;
+}
+
+static int scullp_aio_read_temp(struct kiocb *iocb, struct iov_iter *iov)
+{
+    /* f_pos is the position calculated by kernel */
+    struct scullp_dev *dev = iocb->ki_filp->private_data;
+    struct scullp_dev *dptr; /* the first listitem */
+    int quantum = PAGE_SIZE << dev->order, qset = dev->qset;
+    int itemsize = quantum * qset; /* how many bytes in the listitem */
+    int item, s_pos, q_pos, rest;
+    ssize_t retval = 0;
+    size_t count = iov_iter_count(iov);
+    
+    /* for semaphore down and up */
+    if (down_interruptible(&dev->sem))
+        return -ERESTARTSYS;
+    if (iocb->ki_pos >= dev->size)
+        goto nothing;
+    if (iocb->ki_pos + count > dev->size)
+        count = dev->size - iocb->ki_pos;
+
+    /* find listitem, qset index, and offset in the quantum */
+    item = (long)iocb->ki_pos / itemsize;
+    rest = (long)iocb->ki_pos % itemsize;
+    s_pos = rest / quantum; q_pos = rest % quantum;
+
+    /* follow the list up to the right position (defined eleswhere) */
+    dptr = scullp_follow(dev, item);
+
+    if (!dptr->data)
+        goto nothing;
+    if (!dptr->data[s_pos])
+        goto nothing;
+
+    /* read only up to the end of this quantum */
+    if (count > quantum - q_pos)
+        count = quantum - q_pos;
+    
+    if (copy_to_iter(dptr->data[s_pos] + q_pos, count, iov)) {
+        retval = -EFAULT;
+        goto nothing;
+    }
+
+    iocb->ki_pos += count; /* consider it*/
+    retval = count;
+
+nothing:
+    up(&dev->sem);
+    return retval;
+}
+
+static int scullp_defer_op(int write, struct kiocb *iocb, struct iov_iter *iov)
+{
+	struct async_work *stuff;
+	int result;
+
+	/* Copy now while we can access the buffer */
+	if (write)
+		result = scullp_aio_write_temp(iocb, iov);
+	else
+		result = scullp_aio_read_temp(iocb, iov);
+
+	/* If this is a synchronous IOCB, we return our status now. */
+	if (is_sync_kiocb(iocb))
+		return result;
+
+	/* Otherwise defer the completion for a few milliseconds. */
+	stuff = kmalloc (sizeof (*stuff), GFP_KERNEL);
+	if (stuff == NULL)
+		return result; /* No memory, just complete now */
+	stuff->iocb = iocb;
+	stuff->result = result;
+	INIT_DELAYED_WORK(&stuff->work, scullp_do_deferred_op);
+	schedule_delayed_work(&stuff->work, HZ/100);
+	return -EIOCBQUEUED;
+}
+
+
 static ssize_t scullp_aio_read(struct kiocb *iocb, struct iov_iter *iov)
 {
-
+    return scullp_defer_op(0, iocb, iov);
 }
 static ssize_t scullp_aio_write(struct kiocb *iocb, struct iov_iter *iov)
 {
-
+    return scullp_defer_op(1, iocb, iov);
 }
 
 /*
