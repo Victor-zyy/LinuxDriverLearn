@@ -15,7 +15,7 @@ ccflags-y += -I$(LDDINC) # LDDInclude Directory
 # If KERNELRELEASE is defined, we've been invoked from the
 # kernel build system and can use its language.
 ifneq ($(KERNELRELEASE),)
-	scullp-objs := main.o
+	scullp-objs := main.o mmap.o
 	obj-m := scullp.o
 # Otherwise we were called directly from the command
 # line; invoke the kernel build system.

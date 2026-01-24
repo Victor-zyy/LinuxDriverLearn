@@ -23,7 +23,7 @@
 #include <linux/proc_fs.h>  // read_procmem
 #include <linux/seq_file.h> // seq_file stack
 
-#include "scull.h"
+#include "scullp.h"
 
 
 //#define SCULLP_DEBUG /* Just for Test The true definition is defined in Makefile */
@@ -522,6 +522,11 @@ static ssize_t scullp_aio_write(struct kiocb *iocb, struct iov_iter *iov)
 
 }
 
+/*
+ * Mmap *is* available, but confined in a different file
+ */
+extern int scullp_mmap(struct file *filp, struct vm_area_struct *vma);
+
 //ssize_t (*read_iter) (struct kiocb *, struct iov_iter *);
 //ssize_t (*write_iter) (struct kiocb *, struct iov_iter *);
 struct file_operations scullp_fops = {
@@ -534,6 +539,7 @@ struct file_operations scullp_fops = {
     .release =  scullp_release,
     .read_iter = scullp_aio_read,
     .write_iter = scullp_aio_write,
+    .mmap = scullp_mmap,
 };
 
 

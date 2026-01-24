@@ -20,7 +20,7 @@
 #define _SCULL_H_
 
 #include <linux/ioctl.h> /* needed for the _IOW etc stuff used later */
-
+#include <linux/cdev.h>
 /*
  * Macros to help debugging
  */
