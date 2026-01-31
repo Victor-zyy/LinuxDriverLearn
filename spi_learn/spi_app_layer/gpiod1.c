@@ -62,10 +62,11 @@ int main(int argc, char *argv[])
     {
         gpiod_line_set_value(spi_dc_line, i % 2 == 0);
         printf("spi_dc_line set to value %d\n", i % 2 == 0);
-        sleep(10); 
+        usleep(100); 
         gpiod_line_set_value(spi_rst_line, i % 2 == 0);
         printf("spi_rst_line set to value %d\n", i % 2 == 0);
-        sleep(2);
+        usleep(100); 
+
     }
      
     

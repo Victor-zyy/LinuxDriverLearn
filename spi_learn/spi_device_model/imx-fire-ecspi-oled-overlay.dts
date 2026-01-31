@@ -1,0 +1,55 @@
+#include "../imx6ul-pinfunc.h"
+/dts-v1/;
+/plugin/;
+
+/{
+    fragment@0 {
+        target = <&ecspi3>;
+        __overlay__ {
+            fsl,spi-num-chipselects = <1>;
+            cs-gpios = <&gpio1 20 0>;
+	/* use pintctrl_ecspi1 as the gpio setting for ecspi3 */
+	/* pinctrl-names define the name of the gpio pin */
+	/* pinctrl-N define the Nth of the gpio pin configuration */
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_ecspi3>; 
+	/* the previous of ecspi3 status is disabled in root device tree */
+            status = "okay";
+	/* address-cells means how many cells in a pack like <0> 
+	   <2000000> down below 
+	  size-cells means how many cells in a pack just after address	   
+	*/
+            #address-cells = <1>;
+            #size-cells = <0>;
+	/* sub node for spi_device */
+            ecspi_oled@0 {
+	/* when a node quotes the gpio pin we have to give it two para 
+	   specified by the gpio-cells, when a node quotes the interrupt of
+	   gpio node when have to give two paras specified by the interrupt
+	   cells.
+	*/
+                dc_control_pin = <&gpio1 2 0>;
+                rst_control_pin = <&gpio1 8 0>;
+                compatible = "zynex,ecspi_oled";
+                spi-max-frequency = <20000000>;
+                reg = <0>;
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&iomuxc>;
+        __overlay__ {
+            pinctrl_ecspi3: ecspi3grp {
+                fsl,pins = <
+		    MX6UL_PAD_UART2_RTS_B__ECSPI3_MISO  0x10b0
+		    MX6UL_PAD_UART2_CTS_B__ECSPI3_MOSI  0x10b0
+		    MX6UL_PAD_UART2_RX_DATA__ECSPI3_SCLK 0x10b0
+		    MX6UL_PAD_UART2_TX_DATA__ECSPI3_SS0 0x10b0
+		    MX6UL_PAD_GPIO1_IO02__GPIO1_IO02	0x10b0
+		    MX6UL_PAD_GPIO1_IO08__GPIO1_IO08	0x10b0
+                >;
+            };
+        };
+    };
+};
