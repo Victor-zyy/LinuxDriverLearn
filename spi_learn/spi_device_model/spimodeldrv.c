@@ -20,8 +20,8 @@
 #include "spimodeldrv.h"
 #include <linux/module.h>
 
-#define USE_DEVICE_OF    0
-#define USE_SPI_DEVICE   1
+#define USE_DEVICE_OF    1
+#define USE_SPI_DEVICE   0
 
 #define SSD1309_MAJOR   0 /* for dynamically */
 
@@ -44,8 +44,6 @@ struct ssd1309_oled_dev {
 static struct ssd1309_oled_dev *ssd1309_sdev;
 
 #if USE_DEVICE_OF
-
-static struct device_node *waveshare_oled_device_node; 
 
 #elif USE_SPI_DEVICE
 
