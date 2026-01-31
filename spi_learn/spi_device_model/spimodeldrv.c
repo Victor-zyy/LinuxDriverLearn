@@ -550,6 +550,7 @@ static int waveshare_spi_oled_remove(struct spi_device *spi )
 
     cdev_del(&ssd1309_sdev->cdev); // device number
     unregister_chrdev_region(devno, 1);
+    kfree(ssd1309_sdev);
 #ifdef DEBUGSPIMODEL
     scullc_remove_proc();
 #endif
