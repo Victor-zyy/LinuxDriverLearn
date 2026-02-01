@@ -270,77 +270,59 @@ static int spi_oled_send_data(struct ssd1309_oled_dev *dev, u8 data){
 }
 
 static int spi_oled_send_datas(struct ssd1309_oled_dev *dev, u8 *data, u16 length){
-   int error = 0;
-   int index = 0;
-   struct spi_message *message;
-   struct spi_transfer *transfer; 
-   gpio_direction_output(dev->oled_dc_pin, 1);
-   message = kzalloc(sizeof(struct spi_device), GFP_KERNEL);
-   transfer = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
+    int error = 0;
+    int index = 0;
+    struct spi_message *message;
+    struct spi_transfer *transfer; 
+    gpio_direction_output(dev->oled_dc_pin, 1);
+    message = kzalloc(sizeof(struct spi_device), GFP_KERNEL);
+    transfer = kzalloc(sizeof(struct spi_transfer) * 8, GFP_KERNEL);
 
-   // cycle send 
-   do
-   {
-        if( length > 30 ){
-            transfer->tx_buf = data + index;
-            transfer->len = 30;
-            spi_message_init(message);
-            spi_message_add_tail(transfer,message);
-            index += 30;
-            length -= 30;
-        }
-        else {
+    // cycle send 
+    // one message to 16 transfer
+    spi_message_init(message);
+    for (index = 0; index < 8; index++) {
+            transfer[index].tx_buf = data + index * 16;
+            transfer[index].len =16;
+            spi_message_add_tail(&transfer[index],message);
+            length -= 16;
+    }
+    error = spi_sync(dev->spi_dev, message);
+    if( 0 != error ){
+        pr_err("spi_sync error!\r\n");
+        return -1;
+    }
 
-            transfer->tx_buf = data + index;
-            transfer->len = length;
-            spi_message_init(message);
-            spi_message_add_tail(transfer,message);
-            index += length;
-            length = 0;
-        }
-        error = spi_sync(dev->spi_dev, message);
-        if( 0 != error ){
-            pr_err("spi_sync error!\r\n");
-            return -1;
-        }
-    /* code */
-   } while (length > 0);
-   
-   kfree(message);
-   kfree(transfer);
+    kfree(message);
+    kfree(transfer);
 
-   return 0;
+    return 0;
 }
 
 void spi_oled_fill(struct ssd1309_oled_dev *dev, unsigned char bmp_data){
-    u8 y, x;
-    for( y = 0; y < 8; y++ ){
-        spi_oled_send_command(dev, 0xb0 + y);
-        spi_oled_send_command(dev, 0x00);
-        spi_oled_send_command(dev, 0x10);
-        for( x = 0; x < 128; x++ ){
-            spi_oled_send_data(dev, bmp_data);
-        }
-    }
+    u8 *transfer = kzalloc(8 * 128, GFP_KERNEL);
+    spi_oled_send_datas(dev, transfer, 8 * 128);
+    kfree(transfer);
 }
 
 static int spi_oled_display_buffer(struct ssd1309_oled_dev *dev, u8 *dis_buf){
     int error = 0;
     u16 page,column;
     u8 temp;
+    u8 *transfer = kzalloc(128, GFP_KERNEL);
     for (page=0; page<8; page++) {
         /* write data physical reverse */
         for(column=0; column<128; column++) {
-            temp = dis_buf[(7-page) + column*8]; //page = 0 column = 0; temp = Image[7];
-            //temp = Image[(page) + column*8]; //page = 0 column = 0; temp = Image[7];
-            error += spi_oled_send_data(dev, temp);
+            transfer[column] = dis_buf[(7-page) + column*8]; //page = 0 column = 0; temp = Image[7];
         }       
+        error += spi_oled_send_datas(dev, transfer, 128); /* optimize one page transfer */
     }
     /* at first we set horizontal mode */
     if( 0 != error ){
         pr_err("spi_oled_display_buffer error %d\r\n", error);
         return -1;
     }
+    kfree(transfer);
     return page * column;
 }
 

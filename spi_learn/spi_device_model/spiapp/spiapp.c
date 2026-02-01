@@ -62,6 +62,8 @@ static int oled_display_test(void) {
     oled_display(BlackImage);
     msleep(2000);	
     Paint_Clear(BLACK);		
+    Paint_DrawString_EN(50, 10, "EmbeddedZynex", &Font8, WHITE, BLACK);
+    oled_display(BlackImage);
     
     free(BlackImage);
     return 0;
