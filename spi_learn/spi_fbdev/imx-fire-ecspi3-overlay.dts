@@ -1,0 +1,85 @@
+/*
+ * Copyright (C) 2019 - All Rights Reserved by 
+ * filename : imx-fire-ecspi3-overlay.dts
+ * brief : Device Tree overlay for EBF6ull ecspi3' device
+ * author : embedfire
+ * date : 2019-12-10 
+ * version : A001
+ */
+#include "../imx6ul-pinfunc.h"
+#include "../imx6ull-pinfunc.h"
+#include "../imx6ull-pinfunc-snvs.h"
+#include "dt-bindings/interrupt-controller/irq.h"
+#include "dt-bindings/gpio/gpio.h"
+/dts-v1/;
+/plugin/;
+
+/ {
+		fragment@0 {
+			target = <&ecspi3>;
+			__overlay__ {
+				fsl,spi-num-chipselects = <2>;
+				cs-gpio = <&gpio1 20 GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_ecspi3>;
+				status = "okay";
+				#address-cells = <1>;
+				#size-cells = <0>; 
+				spidev@0 {
+					compatible = "rohm,dh2228fv";
+					spi-max-frequency = <20000000>;
+					reg = <1>;
+				};
+	/* when a node quotes the gpio pin we have to give it two para 
+	   specified by the gpio-cells, when a node quotes the interrupt of
+	   gpio node when have to give two paras specified by the interrupt
+	   cells.
+	*/
+	/* device model for spimodeldrv.ko
+                ecspi_oled@1 {
+                    dc_control_pin = <&gpio1 2 0>;
+                    rst_control_pin = <&gpio1 8 0>;
+                    compatible = "zynex,ecspi_oled";
+                    spi-max-frequency = <20000000>;
+                    reg = <0>;
+                };
+	*/
+                		ecspi_oled@1 {
+                 			dc-gpios = <&gpio1 2 0>;
+                    			reset-gpios = <&gpio1 8 0>;
+                    			compatible = "zynex,ssd1309fb-spi";
+                    			spi-max-frequency = <5000>;
+                    			reg = <0>;         /* cs chip select */
+					zynex,width  = <128>;   /* width */
+					zynex,height = <64>;
+					zynex,page-offset = <0>; /* for 22h */
+					zynex,com-offset = <0>;  /* for d3h */
+					zynex,precharge1 = <2>;  /* for d9h default */
+					zynex,precharge2 = <2>;  /* for d9h */
+					zynex,segment-no-remap;  /* default a0h */
+					/* zynex,com-seq; */
+					/* zynex,com-lrremap; */
+					zynex,com-invdir;
+                		};
+			};
+		};
+		
+		fragment@1 {
+			target = <&iomuxc>;
+			__overlay__ {
+				pinctrl_ecspi3:ecspi3grp {
+					fsl,pins = <
+						MX6UL_PAD_UART2_TX_DATA__ECSPI3_SS0     0x1a090//0x10b0 
+						MX6UL_PAD_UART2_RX_DATA__ECSPI3_SCLK		0x11090//0x10b0
+						MX6UL_PAD_UART2_CTS_B__ECSPI3_MOSI			0x11090//0x10b0	
+						MX6UL_PAD_UART2_RTS_B__ECSPI3_MISO			0x11090//0x10b0
+		                MX6UL_PAD_GPIO1_IO02__GPIO1_IO02	0x10b0
+		                MX6UL_PAD_GPIO1_IO08__GPIO1_IO08	0x10b0
+					>;
+				};						
+			};
+		};
+
+
+
+};
