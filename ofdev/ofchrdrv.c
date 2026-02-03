@@ -95,7 +95,9 @@ static ssize_t of_chrdrv_read (struct file *filp, char __user * buf, size_t coun
     }
 
     /* properties related attributes */
-    for_each_property_of_node(ecspi3_node, prop) {
+    if (ecspi3_node->child) {
+        ecspi3_child = ecspi3_node->child; 
+    for_each_property_of_node(ecspi3_child, prop) {
         pr_err("property : %s len : %d\n", prop->name, prop->length);
         //if (strlen(prop->name) >= strlen("phandle") && strncmp("phandle", prop->name, strlen("phandle")) == 0) {
             if (prop->length % 4 == 0) {
@@ -106,6 +108,13 @@ static ssize_t of_chrdrv_read (struct file *filp, char __user * buf, size_t coun
                 }
             }
         //}
+    }
+
+	pr_info("of_property_read_bool-zynex,segment-no-remap:%d\n", of_property_read_bool(ecspi3_child, "zynex,segment-no-remap"));
+	pr_info("of_property_read_bool-zynex,com-seq:%d\n",of_property_read_bool(ecspi3_child, "zynex,com-seq"));
+	pr_info("of_property_read_bool-zynex,com-lrremap:%d\n",of_property_read_bool(ecspi3_child, "zynex,com-lrremap"));
+	pr_info("of_property_read_bool-zynex,con-invdir:%d\n",of_property_read_bool(ecspi3_child, "zynex,com-invdir"));
+	pr_info("of_property_read_bool-zynex,noseg:%d\n",of_property_read_bool(ecspi3_child, "zynex,com-noseg"));
     }
 
     p_node = of_find_node_by_phandle(38);
