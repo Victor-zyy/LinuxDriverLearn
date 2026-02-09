@@ -267,12 +267,14 @@ static void ssd1309fb_update_display(struct ssd1309fb_par *par)
 			u32 array_idx = i * par->width + j;
 			array->data[array_idx] = 0;
 			for (k = 0; k < 8; k++) {
-				u32 page_length = par->width * i;
-				u32 index = page_length + (par->width * k + j) / 8;
+				u32 page_length = par->width * i; 					// page_length = 0 128 256
+				u32 index = page_length + (par->width * k + j) / 8; // index = 0 , 16,  32, 48 .etc.
 				u8 byte = *(vmem + index);
-				u8 bit = byte & (1 << (j % 8));
-				bit = bit >> (j % 8);
-				array->data[array_idx] |= bit << k;
+				//u8 bit = byte & (1 << (j % 8));  					// it assumes high is low
+				u8 bit = byte & (1 << (7 - j % 8));  			
+				//bit = bit >> (j % 8);
+				bit = bit >> (7 - j % 8);
+				array->data[array_idx] |= bit << k;					// oled display 8pixel MSB or LSB
 			}
 		}
 	}

@@ -39,9 +39,11 @@ clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.order *.symvers
 copy:
 	mkdir -p /home/zyy/repo/embed_linux_tutorial/nfs_share/spi
-	cp *.ko  /home/zyy/repo/embed_linux_tutorial/nfs_share/spi/
+	cp *.ko  spifbapp /home/zyy/repo/embed_linux_tutorial/nfs_share/spi/
+app:
+	arm-linux-gnueabihf-gcc -Wall -Os -o spifbapp spifbapp.c
 
-.PHONY:	modules_install modules clean copy
+.PHONY:	modules_install modules clean copy app
 
 
 endif
