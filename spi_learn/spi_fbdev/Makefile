@@ -36,7 +36,7 @@ modules_install:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.order *.symvers
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.order *.symvers spifbapp
 copy:
 	mkdir -p /home/zyy/repo/embed_linux_tutorial/nfs_share/spi
 	cp *.ko  spifbapp /home/zyy/repo/embed_linux_tutorial/nfs_share/spi/
