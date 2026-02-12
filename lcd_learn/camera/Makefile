@@ -1,0 +1,46 @@
+
+TOOLCHAIN = arm-linux-gnueabihf
+CC	= $(TOOLCHAIN)-gcc
+AR	= $(TOOLCHAIN)-ar
+LD	= $(TOOLCHAIN)-ld
+CPP = $(TOOLCHAIN)-cpp
+COBJDUMP = $(TOOLCHAIN)-objdump
+
+# GCC Flags and Include Dirs setting up
+
+#INCLUDEDIR := $(shell pwd)/ /home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/build_image/build/include/config 
+#INCLUDEDIR += /home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/build_image/build/include/generated
+#INCLUDEDIR += /home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/include/
+#INCLUDEDIR += /home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/build_image/build/usr/include/linux/
+
+CPPFLAGS := $(addprefix -I, $(INCLUDEDIR))
+CFLAGS := -Wall -O2
+
+LDDIR	 := $(shell pwd)/pxp
+LDFLAGS  := $(addprefix -L, $(LDDIR))
+
+export CC AR LD CPP OBJDUMP CPPFLAGS
+
+all: visionpxp visionvideo
+
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+%.o: %.S
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+visionpxp: visionpxp.o pxp/libpxp.a
+	$(CC) $< $(LDFLAGS) $(CPPFLAGS) -lpxp -o $@
+	cp $@  ~/repo/embed_linux_tutorial/nfs_share
+
+visionvideo: visionvideo.o
+	$(CC) $< $(LDFLAGS) $(CPPFLAGS) -o $@
+	cp $@  ~/repo/embed_linux_tutorial/nfs_share
+
+pxp/libpxp.a:
+	cd pxp; make; cd ..
+
+clean:
+	rm -rf *.o visionpxp
+
+.PHONY: clean all
