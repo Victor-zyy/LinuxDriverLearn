@@ -24,7 +24,7 @@ LDDLIBS  := $(addprefix -l, $(LDDLIB))
 
 export CC AR LD CPP OBJDUMP CPPFLAGS
 
-all: visionpxp visionvideo
+all: visionpxp visionvideo pxpv4l2
 
 
 %.o: %.c
@@ -36,6 +36,10 @@ visionpxp: visionpxp.o pxp/libpxp.a
 	$(CC) $< $(LDFLAGS) $(CPPFLAGS) $(LDDLIBS) -o $@
 	cp $@  ~/repo/embed_linux_tutorial/nfs_share
 
+pxpv4l2: pxpv4l2.o
+	$(CC) $< $(CPPFLAGS) -lpthread -o $@
+	cp $@  ~/repo/embed_linux_tutorial/nfs_share
+
 visionvideo: visionvideo.o
 	$(CC) $< $(LDFLAGS) $(CPPFLAGS) -o $@
 	cp $@  ~/repo/embed_linux_tutorial/nfs_share
@@ -44,6 +48,6 @@ pxp/libpxp.a:
 	cd pxp; make; cd ..
 
 clean:
-	rm -rf *.o visionpxp
+	rm -rf *.o visionpxp visionvideo pxpv4l2
 
 .PHONY: clean all
