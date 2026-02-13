@@ -19,6 +19,9 @@ CFLAGS := -Wall -O2
 LDDIR	 := $(shell pwd)/pxp
 LDFLAGS  := $(addprefix -L, $(LDDIR))
 
+LDDLIB	 := pxp pthread
+LDDLIBS  := $(addprefix -l, $(LDDLIB))
+
 export CC AR LD CPP OBJDUMP CPPFLAGS
 
 all: visionpxp visionvideo
@@ -30,7 +33,7 @@ all: visionpxp visionvideo
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 visionpxp: visionpxp.o pxp/libpxp.a
-	$(CC) $< $(LDFLAGS) $(CPPFLAGS) -lpxp -o $@
+	$(CC) $< $(LDFLAGS) $(CPPFLAGS) $(LDDLIBS) -o $@
 	cp $@  ~/repo/embed_linux_tutorial/nfs_share
 
 visionvideo: visionvideo.o
