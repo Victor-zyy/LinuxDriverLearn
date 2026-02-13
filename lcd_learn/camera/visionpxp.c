@@ -14,6 +14,8 @@
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 #include <linux/fb.h>
+#include <pthread.h>
+#include <signal.h>
 
 #include "./pxp/pxp_device.h"
 #include "./pxp/pxp_lib.h"
@@ -56,67 +58,92 @@ static struct fb_fix_screeninfo finfo;
 static int screen_size;
 static void *map_base;
 
+
+static struct pxp_mem_desc mem;
+static struct pxp_mem_desc mem_o;
+static struct pxp_config_data *pxp_conf = NULL;
+static struct pxp_proc_data *proc_data = NULL;
+static pxp_chan_handle_t pxp_chan;
+
 static int pxp_engine_init(void);
+static void pxp_deinit(void);
+static int pxp_run(uint* img_buf);
 static int camera_init(void);
 static int framebuffer_init(void);
 static void copy_image_to_fb(int left, int top, int width, int height, uint *img_ptr, struct fb_var_screeninfo *screen_info);
+static void copy_camera_to_buf(int left, int top, int width, int height, uint *img_ptr, uint* uaddr);
 static void camera_enable(void);
 static void camera_disable(void);
+static void yuyv_to_xrgb8888(uint8_t *yuyv, uint32_t *rgb, int width, int height);
+
+static sigset_t sigset;
+static int quitflag = 0;
+static int signal_thread(void *arg)
+{   
+    int sig, err;
+    
+    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+    
+    while (1) {
+        err = sigwait(&sigset, &sig);
+        if (sig == SIGINT) {
+            dbg(DBG_INFO, "Ctrl-C received\n");
+        } else {
+            dbg(DBG_ERR, "Unknown signal. Still exiting\n");
+        }
+        quitflag = 1;
+        break;
+    }
+    
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {
+	pthread_t sigtid;
     framebuffer_init();
     camera_init();
 
     pxp_engine_init();
 
     camera_enable();
-    printf("Starting PXP-accelerated Preview...\n");
+    dbg(DBG_INFO, "Starting PXP-accelerated Preview...\n");
     
-    camera_disable();
-    close(fd_cam);
-    close(fd_pxp);
-    close(fd_fb);
-    return 0;
-
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGINT);
+	pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+	pthread_create(&sigtid, NULL, (void *)&signal_thread, NULL);
+	
     while (1)
     {
+		if (quitflag) 
+			break;
         struct v4l2_buffer buf = {0};
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
         
+		/** get one frame from camera buffer queue */
         if (ioctl(fd_cam, VIDIOC_DQBUF, &buf) < 0) {
             break;
         }
         
-        /* Start PXP Converting Process */
-        struct v4l2_buffer pxp_in = {0};
-        pxp_in.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-        pxp_in.memory = V4L2_MEMORY_MMAP;
-        pxp_in.index = buf.index; 
-        ioctl(fd_pxp, VIDIOC_QBUF, &pxp_in);
-
-        struct v4l2_buffer pxp_out = {0};
-        pxp_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        pxp_out.memory = V4L2_MEMORY_USERPTR;
-        pxp_out.m.userptr = (unsigned long)map_base; 
-        pxp_out.length = screen_size;
-        ioctl(fd_pxp, VIDIOC_QBUF, &pxp_out);
-
-        ioctl(fd_pxp, VIDIOC_DQBUF, &pxp_in);  
-        ioctl(fd_pxp, VIDIOC_DQBUF, &pxp_out); 
-
+		/**
+		 * Use PXP to convert and show to display
+		 */
+		pxp_run(bufs[buf.index].start);
+		copy_image_to_fb(0, 0, 1024, 600, mem_o.virt_uaddr, &vinfo);
+		/** Put buffer frame to camera queue */
         if (ioctl(fd_cam, VIDIOC_QBUF, &buf) < 0) {
             perror("Camera QBUF Fail");
             break;
         }
-
     }
 
     camera_disable();
     close(fd_cam);
     close(fd_pxp);
     close(fd_fb);
+	pxp_deinit();
      
     return 0;
 }
@@ -166,8 +193,8 @@ static int camera_init(void)
         /** map to user layer */
         bufs[i].length = buf.length;
         bufs[i].start = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd_cam, buf.m.offset);
-        printf("bufs[%d] offset 0x%08x start %p\n", i, buf.m.offset, bufs[i].start);
         bufs[i].paddr = buf.m.offset; // not sure of it
+        dbg(DBG_DEBUG, "bufs[%d] offset 0x%08x start %p\n", i, buf.m.offset, bufs[i].start);
 
         /** put the buffer to video wait the image to flush  */
         ioctl(fd_cam, VIDIOC_QBUF, &buf); // different
@@ -212,6 +239,7 @@ static int framebuffer_init(void)
 
     screen_size = vinfo.xres * vinfo.yres * ( vinfo.bits_per_pixel >> 3 );
     map_base = mmap(NULL, screen_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_fb, 0);
+	dbg(DBG_INFO, "fix screen info smem_start: 0x%08x finfo.smem_len: 0x%08x\n", finfo.smem_start, finfo.smem_len);
 
     /**
      * Clear the Screen
@@ -220,19 +248,17 @@ static int framebuffer_init(void)
 
     return 0;
 }
+
+
 static int pxp_engine_init(void)
 {
     /**
      * Initialize PXP Device
      * 
      */
-	struct pxp_config_data *pxp_conf = NULL;
-	struct pxp_proc_data *proc_data = NULL;
 	int ret = 0, i;
-	struct pxp_mem_desc mem;
-	struct pxp_mem_desc mem_o;
-	pxp_chan_handle_t pxp_chan;
-	struct fb_var_screeninfo var;
+	int fd_img;
+	uint *img_buf;
 
 	ret = pxp_init();
 	if (ret < 0) {
@@ -250,7 +276,7 @@ static int pxp_engine_init(void)
 	/* Prepare the channel parameters */
 	memset(&mem, 0, sizeof(struct pxp_mem_desc));
 	memset(&mem_o, 0, sizeof(struct pxp_mem_desc));
-	mem.size = IMG_WIDTH * IMG_HEIGHT * 4;
+	mem.size = IMG_WIDTH * IMG_HEIGHT * 2; /** YUYV */
 	mem_o.size = screen_size;
 
 	ret = pxp_get_mem(&mem);
@@ -269,14 +295,6 @@ static int pxp_engine_init(void)
 
 	dbg(DBG_DEBUG, "mem_o.virt_uaddr %08x, mem_o.phys_addr %08x, mem_o.size %d\n",
 				mem_o.virt_uaddr, mem_o.phys_addr, mem_o.size);
-
-	for (i = 0; i < (IMG_WIDTH * IMG_HEIGHT * 4 / 4); i++) {
-		*((unsigned int*)mem.virt_uaddr + i) = image_data[i];
-		if (i < 10)
-			dbg(DBG_DEBUG, "[PxP In] 0x%08x 0x%08x\n",
-				*((unsigned int *)mem.virt_uaddr + i),
-				image_data[i]);
-	}
 
 	/* Configure the channel */
 	pxp_conf = malloc(sizeof (*pxp_conf));
@@ -304,7 +322,8 @@ static int pxp_engine_init(void)
 	/*
 	 * Initialize S0 parameters
 	 */
-	pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_XRGB32;
+	//pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_XRGB32;
+	pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_YUYV;
 	pxp_conf->s0_param.width = IMG_WIDTH;
 	pxp_conf->s0_param.height = IMG_HEIGHT;
 	pxp_conf->s0_param.color_key = -1;
@@ -341,40 +360,9 @@ static int pxp_engine_init(void)
 		pxp_conf->out_param.stride = 1024;
 
 	pxp_conf->out_param.paddr = mem_o.phys_addr;
-	dbg(DBG_DEBUG, "pxp_test out paddr %08x\n", pxp_conf->out_param.paddr);
 
-	ret = pxp_config_channel(&pxp_chan, pxp_conf);
-	if (ret < 0) {
-		dbg(DBG_ERR, "pxp config channel err\n");
-		goto err3;
-	}
+	return ret;
 
-	ret = pxp_start_channel(&pxp_chan);
-	if (ret < 0) {
-		dbg(DBG_ERR, "pxp start channel err\n");
-		goto err3;
-	}
-
-	ret = pxp_wait_for_completion(&pxp_chan, 3);
-	if (ret < 0) {
-		dbg(DBG_ERR, "pxp wait for completion err\n");
-		goto err3;
-	}
-
-    /**
-     * Show Display first and wait for 5s to display
-     */
-    copy_image_to_fb(0, 0, IMG_WIDTH, IMG_HEIGHT, (void *)mem.virt_uaddr, &vinfo);
-    sleep(1);
-    /**
-     *  Reconfigure the Fb device
-     * 
-     */
-    copy_image_to_fb(0, 0, 1024, 600, (void *)mem_o.virt_uaddr, &vinfo);
-
-	dbg(DBG_INFO, "pxp_test instance finished!\n");
-err4:
-	close(fd_fb);
 err3:
 	pxp_put_mem(&mem_o);
 err2:
@@ -386,6 +374,53 @@ err0:
 	pxp_uninit();
 
 	return ret;
+}
+
+static int pxp_run(uint *img_buf) {
+	int ret;
+
+	copy_camera_to_buf(0, 0, IMG_WIDTH, IMG_HEIGHT, img_buf, mem.virt_uaddr);
+
+	ret = pxp_config_channel(&pxp_chan, pxp_conf);
+	if (ret < 0) {
+		dbg(DBG_ERR, "pxp config channel err\n");
+		goto err3;
+	}
+	ret = pxp_start_channel(&pxp_chan);
+	if (ret < 0) {
+		dbg(DBG_ERR, "pxp start channel err\n");
+		goto err3;
+	}
+
+	ret = pxp_wait_for_completion(&pxp_chan, 3);
+	if (ret < 0) {
+		dbg(DBG_ERR, "pxp wait for completion err\n");
+		goto err3;
+	}
+	dbg(DBG_DEBUG, "pxp converted completed\n");
+
+	return ret;
+err3:
+	pxp_put_mem(&mem_o);
+	pxp_put_mem(&mem);
+	free(pxp_conf);
+	pxp_release_channel(&pxp_chan);
+	pxp_uninit();
+	return ret;
+}
+
+
+static void pxp_deinit(void)
+{
+	pxp_put_mem(&mem_o);
+	pxp_put_mem(&mem);
+	free(pxp_conf);
+	pxp_release_channel(&pxp_chan);
+	pxp_uninit();
+}
+static void copy_camera_to_buf(int left, int top, int width, int height, uint *img_ptr, uint* uaddr)
+{
+	memcpy(uaddr, img_ptr, IMG_WIDTH * IMG_HEIGHT * 2);
 }
 static void copy_image_to_fb(int left, int top, int width, int height, uint *img_ptr, struct fb_var_screeninfo *screen_info)
 {
@@ -405,4 +440,66 @@ static void copy_image_to_fb(int left, int top, int width, int height, uint *img
 			img_ptr + (i * width) * bytes_per_pixel /4,
 			width * bytes_per_pixel);
 	}
+}
+
+static inline uint32_t xrgb8888(int r, int g, int b)
+{
+    return (0xFF << 24) |
+           ((r & 0xFF) << 16) |
+           ((g & 0xFF) << 8)  |
+           (b & 0xFF);
+}
+
+static void yuyv_to_xrgb8888(uint8_t *yuyv, uint32_t *rgb, int width, int height)
+{
+    // 640 * 480
+    int frame_size = width * height * 2;
+    static uint32_t index = 0;
+    uint32_t *addr = rgb;
+
+    for (int i = 0; i < frame_size; i += 4) {
+        int y0 = yuyv[i + 0];
+        int u  = yuyv[i + 1] - 128;
+        int y1 = yuyv[i + 2];
+        int v  = yuyv[i + 3] - 128;
+
+        int r0 = y0 + 1.402 * v;
+        int g0 = y0 - 0.344 * u - 0.714 * v;
+        int b0 = y0 + 1.772 * u;
+
+        int r1 = y1 + 1.402 * v;
+        int g1 = y1 - 0.344 * u - 0.714 * v;
+        int b1 = y1 + 1.772 * u;
+
+        rgb[0] = xrgb8888(r0, g0, b0);
+        rgb[1] = xrgb8888(r1, g1, b1);
+
+        // 640 * 480 * 2 
+        
+        // i 0 4 640
+        if (i > 0 && i % 1280 == 0) {
+            index++;
+            rgb = addr + index * 1024;
+        }
+        else
+            rgb += 2;
+    }
+    index = 0;
+}
+static int file_init(int fd[], size_t cnt)
+{
+	int ret = 0;
+	int i ;
+	char file_name[10];
+	for (i = 0; i < cnt; i++) {	
+		snprintf(file_name, sizeof(file_name), "fileimg%d", i);
+		fd[i] = open(file_name, O_CREAT | O_RDWR, 0644);
+		if (fd[i] < 0) {
+			dbg(DBG_ERR, "Open %s%d file fail\n", file_name, i);
+			ret = -1;
+			break;
+		}
+	}
+
+	return ret;
 }
