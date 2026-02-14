@@ -49,5 +49,6 @@ pxp/libpxp.a:
 
 clean:
 	rm -rf *.o visionpxp visionvideo pxpv4l2
+	cd pxp; make clean; cd ..
 
 .PHONY: clean all
