@@ -620,10 +620,84 @@ static int pxp_config_buffer(struct pxp_control *pxp)
 			perror("failed to mmap pxp buffer");
 			return 1;
 		}
+		/**
+		 * 
+		 */
 		if (ioctl(pxp->vfd, VIDIOC_QBUF, &pxp->buffers[i].buf) < 0) {
 			printf("VIDIOC_QBUF failed\n");
 			return 1;
 		}
+	}
+
+	return 0;
+}
+
+static int pxp_config_windows(struct pxp_control *pxp)
+{
+	struct v4l2_framebuffer fb;
+	struct v4l2_format format;
+	struct v4l2_crop crop;
+
+	/* Set FB overlay options */
+	fb.flags = V4L2_FBUF_FLAG_OVERLAY;
+
+	if (pxp->global_alpha)
+		fb.flags |= V4L2_FBUF_FLAG_GLOBAL_ALPHA;
+	if (pxp->colorkey)
+		fb.flags |= V4L2_FBUF_FLAG_CHROMAKEY;
+	if (ioctl(pxp->vfd, VIDIOC_S_FBUF, &fb) < 0) {
+		perror("VIDIOC_S_FBUF");
+		return 1;
+	}
+
+	/* Set overlay source window */
+	memset(&format, 0, sizeof(struct v4l2_format));
+	format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY;
+	format.fmt.win.global_alpha = pxp->global_alpha_val;
+	format.fmt.win.chromakey = pxp->colorkey_val;
+	format.fmt.win.w.left = 0;
+	format.fmt.win.w.top = 0;
+	format.fmt.win.w.width = pxp->s0.width;
+	format.fmt.win.w.height = pxp->s0.height;
+	printf("win.w.l/t/w/h = %d/%d/%d/%d\n", format.fmt.win.w.left,
+	       format.fmt.win.w.top,
+	       format.fmt.win.w.width, format.fmt.win.w.height);
+	if (ioctl(pxp->vfd, VIDIOC_S_FMT, &format) < 0) {
+		perror("VIDIOC_S_FMT output overlay");
+		return 1;
+	}
+
+	/* Set cropping window */
+	crop.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY;
+	if (pxp->dst_state) {
+		crop.c.left = pxp->dst.left;
+		crop.c.top = pxp->dst.top;
+		crop.c.width = pxp->dst.width;
+		crop.c.height = pxp->dst.height;
+	} else {
+		if (pxp->rotate_pass) {
+			int scale = 16 * pxp->screen_h / pxp->screen_w;
+			if (pxp->rotate == 90 || pxp->rotate == 270) {
+				crop.c.left = 0;
+				crop.c.top = 0;
+			}
+			crop.c.width = pxp->screen_w * scale / 16;
+			crop.c.height = pxp->screen_h * scale / 16;
+
+			crop.c.width = (crop.c.width >> 3) << 3;
+			crop.c.height = (crop.c.height >> 3) << 3;
+		} else {
+			crop.c.left = 0;
+			crop.c.top = 0;
+			crop.c.width = pxp->s0.width;
+			crop.c.height = pxp->s0.height;
+		}
+	}
+	printf("crop.c.l/t/w/h = %d/%d/%d/%d\n", crop.c.left,
+	       crop.c.top, crop.c.width, crop.c.height);
+	if (ioctl(pxp->vfd, VIDIOC_S_CROP, &crop) < 0) {
+		perror("VIDIOC_S_CROP");
+		return 1;
 	}
 
 	return 0;
@@ -717,6 +791,8 @@ static int pxp_start(struct pxp_control *pxp)
 		ret = -1;
 		return ret;
 	}
+//goto end;
+
 	/**
 	 * Starting Capture and Show Display
 	 */
@@ -746,6 +822,7 @@ static int pxp_start(struct pxp_control *pxp)
 		}
 	}
 
+end:
 	gettimeofday(&tv_current, NULL);
 	total_time = (tv_current.tv_sec - tv_start.tv_sec) * 1000000L;
 	total_time += tv_current.tv_usec - tv_start.tv_usec;
@@ -754,6 +831,30 @@ static int pxp_start(struct pxp_control *pxp)
 
 	close(fd);
 	return ret;
+}
+
+
+static int camera_stop(void)
+{
+	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	int i;
+
+	printf("complete\n");
+
+	/* Disable PxP */
+	if (ioctl(fd_cam, VIDIOC_STREAMOFF, &type) < 0) {
+		perror("Cam VIDIOC_STREAMOFF");
+		return 1;
+	}
+
+	return 0;
+
+}
+
+static void camera_cleanup(void)
+{
+	close(fd_cam);
+	free(bufs);
 }
 
 static int pxp_stop(struct pxp_control *pxp)
@@ -815,14 +916,21 @@ int main(int argc, char *argv[])
 	if (pxp_read_infiles(pxp))
 		return 1;
 
+#endif
+
 	if (pxp_config_windows(pxp))
 		return 1;
-#endif
+
 	if (pxp_config_controls(pxp))
 		return 1;
 
 	if (pxp_start(pxp))
 		return 1;
+
+	if (camera_stop()) 
+		return 1;
+
+	camera_cleanup();
 
 	if (pxp_stop(pxp))
 		return 1;
