@@ -7,7 +7,7 @@
                 "MODULE",
                 "KBUILD_MODNAME=\"DriverModule\""
             ],
-            "compilerPath": "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
+            "compilerPath": "/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/bin",
             "cStandard": "c99",
             "cppStandard": "c++11",
             "intelliSenseMode": "gcc-arm",

@@ -1,6 +1,7 @@
 
 TOOLCHAIN = arm-linux-gnueabihf
 CC	= $(TOOLCHAIN)-gcc
+CXX = $(TOOLCHAIN)-g++
 AR	= $(TOOLCHAIN)-ar
 LD	= $(TOOLCHAIN)-ld
 CPP = $(TOOLCHAIN)-cpp
@@ -14,6 +15,7 @@ COBJDUMP = $(TOOLCHAIN)-objdump
 #INCLUDEDIR += /home/zyy/repo/embed_linux_tutorial/ebf_linux_kernel/build_image/build/usr/include/linux/
 
 CPPFLAGS := $(addprefix -I, $(INCLUDEDIR))
+CXXFLAGS := $(addprefix -I, $(CXXINCLUDEDIR))
 CFLAGS := -Wall -O2
 
 LDDIR	 := $(shell pwd)/pxp
@@ -22,14 +24,14 @@ LDFLAGS  := $(addprefix -L, $(LDDIR))
 LDDLIB	 := pxp pthread
 LDDLIBS  := $(addprefix -l, $(LDDLIB))
 
+
 export CC AR LD CPP OBJDUMP CPPFLAGS
 
-all: visionpxp visionvideo pxpv4l2
+all: visionpxp visionvideo pxpv4l2 
 
-
-%.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 %.o: %.S
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+%.o: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 visionpxp: visionpxp.o pxp/libpxp.a
